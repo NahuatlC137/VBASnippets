@@ -1,0 +1,130 @@
+Option Explicit
+
+Sub ZipCodeScrape()
+    Const WORKER_COUNT = 10
+    Application.ScreenUpdating = False
+    Dim x As Long, Target As Range
+    Dim Address As String
+
+    With ThisWorkbook.Worksheets("Sheet3")
+        For x = 2 To .Range("C" & .Rows.count).End(xlUp) Step WORKER_COUNT
+            Set Target = Intersect(.Cells(x, 3).Resize(WORKER_COUNT), .UsedRange)
+            If Not Target Is Nothing Then
+                CreateScript getQuilifiedAddress(Target)
+            End If
+        Next
+    End With
+    Application.ScreenUpdating = True
+End Sub
+
+Function getQuilifiedAddress(Target As Range) As String
+    getQuilifiedAddress = "'" & Target.Worksheet.Name & "'!" & Target.Address(0, 0)
+End Function
+
+Sub CreateScript(Address As String)
+    Dim fso As Object, wsh As Object
+    Dim results(81) As String
+    Dim ScriptFullName As String
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    ScriptFullName = fso.BuildPath(Environ("Temp"), Replace(fso.GetTempName, "tmp", "vbs"))
+
+    results(0) = "Const BASE_URL = ""https://www.unitedstateszipcodes.org/"""
+    results(1) = "Const TARGET = " & Chr(34) & Address & Chr(34)
+    results(2) = "Const FULLNAME = " & Chr(34) & ThisWorkbook.FULLNAME & Chr(34)
+    results(3) = "Const ScriptFullName = " & Chr(34) & ScriptFullName & Chr(34)
+    results(4) = "ZipCodeScrape4"
+    results(5) = "DeleteScript"
+    results(6) = ""
+    results(7) = "Sub ZipCodeScrape4()"
+    results(8) = "    Dim doc, wb"
+    results(9) = "    Dim arrZipCodes, results, zipcode"
+    results(10) = "    Dim count:count = 0"
+    results(11) = ""
+    results(12) = "    Set wb = GetObject(FULLNAME)"
+    results(13) = ""
+    results(14) = "    arrZipCodes = wb.Application.Range(TARGET).Value2"
+    results(15) = ""
+    results(16) = "    ReDim results(UBound(arrZipCodes) - 1, 5)"
+    results(17) = ""
+    results(18) = "    For Each zipcode In arrZipCodes"
+    results(19) = "        Set doc = getDocument(BASE_URL & FormatZipCode(zipcode))"
+    results(20) = "        results(count, 2) = zipcode"
+    results(21) = "        If Not doc Is Nothing Then"
+    results(22) = "            results(count, 0) = getPrimaryCity(doc)"
+    results(23) = "            results(count, 1) = getState(doc)"
+    results(24) = "            results(count, 3) = getTDByTH(doc, ""County: "")"
+    results(25) = "            results(count, 4) = getTDByTH(doc, ""Population"")"
+    results(26) = "            results(count, 5) = getTDByTH(doc, ""Median Home Value"")"
+    results(27) = "        End If"
+    results(28) = "        count = count + 1"
+    results(29) = "    Next"
+    results(30) = "    wb.Application.Range(TARGET).Offset(0, -2).Resize(UBound(results) + 1, UBound(results, 2) + 1).Value = results"
+    results(31) = "   "
+    results(32) = "End Sub"
+    results(33) = ""
+    results(34) = "Private Function getTDByTH(doc, Heading)"
+    results(35) = "    Dim post"
+    results(36) = "    For Each post In doc.getElementsByTagName(""TH"")"
+    results(37) = "        If post.innerText = Heading Then"
+    results(38) = "            getTDByTH = post.ParentNode.getElementsByTagName(""TD"")(0).innerText"
+    results(39) = "            Exit For"
+    results(40) = "        End If"
+    results(41) = "    Next"
+    results(42) = "End Function"
+    results(43) = ""
+    results(44) = "Private Function getPrimaryCity(doc)"
+    results(45) = "    Dim PrimaryCity"
+    results(46) = "    PrimaryCity = getTDByTH(doc, ""Primary City:"")"
+    results(47) = "    If Not IsEmpty(PrimaryCity) Then getPrimaryCity = Split(PrimaryCity, "","")(0)"
+    results(48) = "End Function"
+    results(49) = ""
+    results(50) = "Private Function getState(doc) "
+    results(51) = "    Dim PrimaryCity, PrimaryCityArray"
+    results(52) = ""
+    results(53) = "    PrimaryCity = getTDByTH(doc, ""Primary City:"")"
+    results(54) = "    PrimaryCityArray = Split(PrimaryCity, "","")"
+    results(55) = "    If Not IsEmpty(PrimaryCity) Then getState = Split(PrimaryCityArray(1), "" "")(1)"
+    results(56) = "End Function"
+    results(57) = ""
+    results(58) = "Function getDocument(URL)"
+    results(59) = "    Dim doc"
+    results(60) = "    On Error Resume Next"
+    results(61) = "    With CreateObject(""MSXML2.XMLHTTP"")"
+    results(62) = "        .Open ""GET"", URL, False"
+    results(63) = "        .send"
+    results(64) = "        If .readyState = 4 And .Status = 200 Then"
+    results(65) = "            Set doc = CreateObject(""htmlfile"")"
+    results(66) = "            doc.Write .responseText"
+    results(67) = "            Set getDocument = doc"
+    results(68) = "        Else"
+    results(69) = "            Set getDocument = Nothing"
+    results(70) = "        End If"
+    results(71) = "    End With"
+    results(72) = "End Function"
+    results(73) = ""
+    results(74) = "Function FormatZipCode(ZipCode)"
+    results(75) = "    If Len(ZipCode) < 5 Then FormatZipCode = String(5 - Len(ZipCode), ""0"") & ZipCode Else FormatZipCode = ZipCode"
+    results(76) = "End Function"
+    results(77) = ""
+    results(78) = "Sub DeleteScript"
+    results(79) = "    Set fso = CreateObject(""Scripting.FileSystemObject"")"
+    results(80) = "    fso.DeleteFile ScriptFullName, True"
+    results(81) = "End Sub"
+
+    With CreateObject("new:{1C3B4210-F441-11CE-B9EA-00AA006B1A69}")
+        .SetText Join(results, vbCrLf)
+        .PutInClipboard
+    End With
+    
+    With fso.CreateTextFile(ScriptFullName, True)
+        .Write Join(results, vbCrLf)
+        .Close
+    End With
+
+    Set wsh = VBA.CreateObject("WScript.Shell")
+    On Error Resume Next
+    wsh.Run """" & ScriptFullName & """"
+    On Error GoTo 0
+    Set wsh = Nothing
+
+End Sub
